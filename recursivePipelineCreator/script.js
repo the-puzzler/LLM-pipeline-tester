@@ -136,7 +136,6 @@ function removeMovingConnection() {
 
 function createConnection(fromUnitId, toUnitId) {
     // Remove any existing connections to the target input
-    connections = connections.filter(conn => conn.to !== toUnitId);
     
     connections.push({ from: fromUnitId, to: toUnitId });
     updateConnections();
@@ -252,46 +251,60 @@ async function processPipeline(unit, apiKey) {
         throw error;
     }
 }
-
 async function processUnit(unit, unitType, apiKey) {
     const textarea = unit.querySelector('textarea');
+    const content = textarea.value;
     const unitId = unit.dataset.unitId;
-    let content = textarea.value;
-
-    // Find all inputs connected to this unit
     const inputConnections = connections.filter(conn => conn.to === unitId);
     
     switch (unitType) {
         case 'input':
-            // Input units just pass their text along
             return content;
 
         case 'output':
-            // Output units display and pass along their input
             if (inputConnections.length > 0) {
                 return pipelineData.get(inputConnections[0].from) || '';
             }
             return '';
 
         case 'ai':
-            // Replace variables in the prompt with their values
-            const processedPrompt = replaceVariables(content, inputConnections, false);
-            return await callOpenAI(processedPrompt, apiKey);
-
         case 'custom':
-            try {
-                const processedCode = replaceVariables(content, inputConnections);
-                const customFunction = new Function('return ' + processedCode);
-                const result = await customFunction();
-                // Don't update the textarea - keep the original code visible
-                return result;
-            } catch (error) {
-                throw new Error(`Custom code error: ${error.message}`);
+            // Create a map of all input values using the source unit IDs
+            const inputs = inputConnections.map(conn => ({
+                from: conn.from,
+                type: getUnitType(conn.from),
+                value: pipelineData.get(conn.from)
+            }));
+            
+            // Replace variables using unit IDs and types
+            let processedContent = content;
+            inputs.forEach(input => {
+                const varPattern = `\\$${input.type}${input.from}`;
+                const regex = new RegExp(varPattern, 'g');
+                const value = unitType === 'custom' ? `"${input.value}"` : input.value;
+                processedContent = processedContent.replace(regex, value);
+            });
+
+            if (unitType === 'ai') {
+                return await callOpenAI(processedContent, apiKey);
+            } else {
+                try {
+                    const customFunction = new Function('return ' + processedContent);
+                    return await customFunction();
+                } catch (error) {
+                    throw new Error(`Custom code error: ${error.message}`);
+                }
             }
 
         default:
             throw new Error(`Unknown unit type: ${unitType}`);
     }
+}
+
+function getUnitType(unitId) {
+    const unit = document.querySelector(`[data-unit-id="${unitId}"]`);
+    if (!unit) return '';
+    return unit.querySelector('.unit-header span').textContent.split(' ')[0].toLowerCase();
 }
 
 function replaceVariables(content, inputConnections, isCustomUnit = false) {

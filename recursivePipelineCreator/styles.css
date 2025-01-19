@@ -1,46 +1,106 @@
-.unit {
-    position: absolute;
-    /* Other styling */
+.container {
+    padding: 20px;
 }
-h2 {
-    display: inline-block;
-    width: auto;
-    
+
+.top-controls {
+    margin-bottom: 20px;
+}
+
+.unit-controls {
+    margin-bottom: 20px;
+}
+
+.unit {
+    border: 1px solid #ccc;
+    padding: 10px;
+    margin: 10px;
+    width: 300px;
+    position: absolute;
+    background: white;
+}
+
+.unit-header {
+    cursor: move;
+    padding: 5px;
+    background: #f0f0f0;
+    display: flex;
+    justify-content: space-between;
+}
+
+.connector {
+    width: 15px;
+    height: 15px;
+    background: #666;
+    border-radius: 50%;
     cursor: pointer;
 }
 
-.port {
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
+.input-connector {
+    float: left;
+}
+
+.output-connector {
+    float: right;
+}
+
+.connection-line {
     position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
+    height: 2px;
+    background: #666;
+    pointer-events: none;
 }
 
-.in-port {
-    background-color: green;
-    left: 0;
-}
-
-.out-port {
-    background-color: red;
-    right: 0;
-}
-
-.handle {
-    position: relative;  // Needed to position the ports absolutely within the handle
+.textarea {
     width: 100%;
-    height: 20px;
-    padding: 10px;
-    background-color: #ccc;
-    cursor: grab;
-    display: flex;
-    align-items: center;
-   
-    justify-content: center;  // Center the text horizontally
-}
-.delete-text {
-    pointer-events: all;
+    min-height: 100px;
+    margin-top: 10px;
 }
 
+.delete-btn {
+    color: red;
+    cursor: pointer;
+}
+
+.connection-line.moving {
+    background: #999;
+    pointer-events: none;
+    z-index: 1000;
+}
+
+.connector:hover {
+    background: #999;
+}
+
+.unit {
+    z-index: 1;
+}
+
+.connector {
+    width: 12px;
+    height: 12px;
+    background: #666;
+    border-radius: 50%;
+    cursor: pointer;
+    position: relative;
+}
+
+/* Add visible connection points */
+.connector::after {
+    content: '';
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    background: #fff;
+    border-radius: 50%;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.connection-line {
+    position: absolute;
+    height: 3px;
+    background: #666;
+    pointer-events: none;
+    transform-origin: left center;
+}

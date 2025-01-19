@@ -345,3 +345,98 @@ async function callOpenAI(prompt, apiKey) {
         throw new Error(`OpenAI API call failed: ${error.message}`);
     }
 }
+
+function saveState() {
+    // Collect all unit data
+    const units = Array.from(document.querySelectorAll('.unit')).map(unit => ({
+        id: unit.dataset.unitId,
+        type: unit.querySelector('.unit-header span').textContent.split(' ')[0].toLowerCase(),
+        content: unit.querySelector('textarea').value,
+        position: {
+            left: unit.style.left,
+            top: unit.style.top
+        }
+    }));
+
+    // Create state object
+    const state = {
+        units,
+        connections,
+        unitCounter
+    };
+
+    // Create and trigger download
+    const dataStr = JSON.stringify(state, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    
+    const downloadLink = document.createElement('a');
+    downloadLink.href = url;
+    downloadLink.download = 'pipeline_state.json';
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+    URL.revokeObjectURL(url);
+}
+
+function loadState(file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const state = JSON.parse(e.target.result);
+            
+            // Clear current state
+            document.getElementById('workspace').innerHTML = '';
+            connections = [];
+            pipelineData.clear();
+            
+            // Set unit counter
+            unitCounter = state.unitCounter;
+            
+            // Recreate units
+            state.units.forEach(unitData => {
+                const unit = document.createElement('div');
+                unit.className = 'unit';
+                unit.dataset.unitId = unitData.id;
+                unit.style.left = unitData.position.left;
+                unit.style.top = unitData.position.top;
+
+                unit.innerHTML = `
+                    <div class="unit-header">
+                        <div class="connector input-connector" data-unit="${unitData.id}"></div>
+                        <span>${unitData.type.toUpperCase()} ${unitData.id}</span>
+                        <div class="connector output-connector" data-unit="${unitData.id}"></div>
+                        <span class="delete-btn">×</span>
+                    </div>
+                    <textarea class="textarea" placeholder="${unitData.type} processing...">${unitData.content}</textarea>
+                `;
+
+                document.getElementById('workspace').appendChild(unit);
+                initializeDragAndDrop(unit);
+                initializeConnectors(unit);
+                initializeDelete(unit);
+            });
+            
+            // Recreate connections
+            connections = state.connections;
+            updateConnections();
+            
+        } catch (error) {
+            alert('Error loading pipeline state: ' + error.message);
+        }
+    };
+    reader.readAsText(file);
+}
+
+// Add event listeners
+document.getElementById('downloadState').addEventListener('click', saveState);
+
+document.getElementById('loadState').addEventListener('click', () => {
+    document.getElementById('loadFile').click();
+});
+
+document.getElementById('loadFile').addEventListener('change', (e) => {
+    if (e.target.files.length > 0) {
+        loadState(e.target.files[0]);
+    }
+});

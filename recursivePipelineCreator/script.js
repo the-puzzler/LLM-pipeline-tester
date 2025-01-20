@@ -440,3 +440,121 @@ document.getElementById('loadFile').addEventListener('change', (e) => {
         loadState(e.target.files[0]);
     }
 });
+
+
+
+
+
+document.getElementById('downloadScript').addEventListener('click', generatePipelineScript);
+
+function generatePipelineScript() {
+    // Collect all units and sort them topologically
+    const units = Array.from(document.querySelectorAll('.unit')).map(unit => ({
+        id: unit.dataset.unitId,
+        type: unit.querySelector('.unit-header span').textContent.split(' ')[0].toLowerCase(),
+        content: unit.querySelector('textarea').value
+    }));
+
+    // Generate the script content
+    const scriptContent = `
+// Generated Pipeline Function
+async function runGeneratedPipeline(apiKey, inputs = {}) {
+    // Initialize pipeline data storage
+    const pipelineData = new Map();
+    
+    // Store input values
+    ${generateInputInitialization()}
+
+    // Process units in order
+    ${generateProcessingCode()}
+
+    // Return outputs
+    return {
+        ${generateOutputCollection()}
+    };
+}
+
+// Helper function for AI calls
+async function callOpenAI(prompt, apiKey) {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': \`Bearer \${apiKey}\`
+        },
+        body: JSON.stringify({
+            model: "gpt-4o",
+            messages: [{
+                role: "user",
+                content: prompt
+            }],
+            temperature: 0.7
+        })
+    });
+
+    if (!response.ok) {
+        throw new Error(\`OpenAI API error: \${response.statusText}\`);
+    }
+
+    const data = await response.json();
+    return data.choices[0].message.content;
+}`;
+
+    // Create and trigger download
+    const dataBlob = new Blob([scriptContent], { type: 'application/javascript' });
+    const url = URL.createObjectURL(dataBlob);
+    
+    const downloadLink = document.createElement('a');
+    downloadLink.href = url;
+    downloadLink.download = 'generated_pipeline.js';
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+    URL.revokeObjectURL(url);
+
+    function generateInputInitialization() {
+        const inputUnits = units.filter(unit => unit.type === 'input');
+        return inputUnits.map(unit => 
+            `pipelineData.set("${unit.id}", inputs["input${unit.id}"] || ${JSON.stringify(unit.content)});`
+        ).join('\n    ');
+    }
+
+    function generateProcessingCode() {
+        return units.map(unit => {
+            const inputConns = connections.filter(conn => conn.to === unit.id);
+            
+            switch(unit.type) {
+                case 'input':
+                    return '// Input units already initialized';
+                case 'ai':
+                    return `pipelineData.set("${unit.id}", await callOpenAI(${generateContentWithReplacements(unit, inputConns)}, apiKey));`;
+                case 'custom':
+                    return `pipelineData.set("${unit.id}", await (async () => { ${generateContentWithReplacements(unit, inputConns)} })());`;
+                case 'output':
+                    if (inputConns.length > 0) {
+                        return `pipelineData.set("${unit.id}", pipelineData.get("${inputConns[0].from}"));`;
+                    }
+                    return `pipelineData.set("${unit.id}", "");`;
+            }
+        }).filter(code => code).join('\n    ');
+    }
+
+    function generateContentWithReplacements(unit, inputConns) {
+        let content = unit.content;
+        inputConns.forEach(conn => {
+            const sourceUnit = units.find(u => u.id === conn.from);
+            const varPattern = `\\$${sourceUnit.type}${conn.from}`;
+            const regex = new RegExp(varPattern, 'g');
+            content = content.replace(regex, `pipelineData.get("${conn.from}")`);
+        });
+        return content;
+    }
+
+    function generateOutputCollection() {
+        const outputUnits = units.filter(unit => unit.type === 'output');
+        return outputUnits.map(unit => 
+            `output${unit.id}: pipelineData.get("${unit.id}")`
+        ).join(',\n        ');
+    }
+}
+

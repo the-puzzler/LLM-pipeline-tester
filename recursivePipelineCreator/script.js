@@ -318,31 +318,24 @@ function replaceVariables(content, inputConnections, isCustomUnit = false) {
 }
 
 async function callOpenAI(prompt, apiKey) {
+    const useR1 = document.getElementById('useR1').checked;
     try {
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        const response = await fetch('http://localhost:3000/api/chat', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                model: "gpt-4o",
-                messages: [{
-                    role: "user",
-                    content: prompt
-                }],
-                temperature: 0.7
+                prompt,
+                apiKey,
+                useR1
             })
         });
-
-        if (!response.ok) {
-            throw new Error(`OpenAI API error: ${response.statusText}`);
-        }
 
         const data = await response.json();
         return data.choices[0].message.content;
     } catch (error) {
-        throw new Error(`OpenAI API call failed: ${error.message}`);
+        throw new Error(`API call failed: ${error.message}`);
     }
 }
 
